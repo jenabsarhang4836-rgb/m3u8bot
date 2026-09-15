@@ -17,16 +17,17 @@ MODEL = "gemini-3.6-flash"
 def whisper_segments(path):
     from faster_whisper import WhisperModel
     m = WhisperModel("base", device="cpu", compute_type="int8", download_root="/tmp/models")
-    # By using word_timestamps=False and simply relying on default segmenting (which is VAD-aware), 
-    # we get much better and native sync.
-    segs, _ = m.transcribe(path, language="tr", vad_filter=True, 
-                           vad_parameters={"min_silence_duration_ms": 300})
+    # word_timestamps=True forces the model to align text with audio strictly
+    segs, _ = m.transcribe(path, language="tr", word_timestamps=True, vad_filter=True)
     out = []
     for s in segs:
-        t = s.text.strip()
-        if t:
-            out.append((s.start, s.end, t))
-    return out
+        if s.words:
+            # use the precise start of the first word, and end of the last word!
+            out.append((s.words[0].start, s.words[-1].end, s.text.strip()))
+        else:
+            out.append((s.start, s.end, s.text.strip()))
+    return [o for o in out if o[2]]
+
 
 
 
