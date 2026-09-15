@@ -59,17 +59,13 @@ def upload_file(path, key):
         time.sleep(10)
     return uri, mime
 
-PROMPT = ("Transcribe ALL spoken Turkish dialogue in this file and translate "
-          "it to Persian. Rules: "
-          "1) TIMING: each subtitle's start/end must match exactly when the "
-          "sentence is spoken - perfect sync with the audio. "
-          "2) STYLE: natural modern colloquial everyday Persian "
-          "(فارسی محاوره‌ای و امروزی), never formal or bookish. "
-          "3) Each subtitle line max 42 characters. If a dialogue is longer, "
-          "split it into 2 lines at a natural pause. "
-          "Output ONLY valid SRT subtitles with accurate "
-          "timestamps (format: number, HH:MM:SS,mmm --> HH:MM:SS,mmm, text). "
-          "No explanations, no code fences, just raw SRT.")
+PROMPT = ("You are an expert professional translator specializing in Turkish to Persian audio translation.\n"
+          "Your task is to transcribe ALL spoken Turkish dialogue accurately and translate it into natural, fluent, colloquial everyday Iranian Persian (فارسی روان، امروزی و طبیعی).\n\n"
+          "CRITICAL RULES:\n"
+          "1. PERFECT TIMING & SYNC: The start and end timestamps must strictly align with the exact milliseconds the speaker begins and stops speaking. Do not guess or drift. Never merge dialogue spoken far apart.\n"
+          "2. TRANSLATION QUALITY: Translate idioms, tone, humor, and emotional expressions into natural Persian equivalents, NOT robotic word-by-word literal translations.\n"
+          "3. READABILITY: Keep lines concise (maximum 38 characters per line). Split long sentences across natural pauses.\n"
+          "4. OUTPUT FORMAT: Output ONLY valid, clean SRT formatted subtitles with precise timestamps (HH:MM:SS,mmm --> HH:MM:SS,mmm). No preamble, no explanations, no markdown fences.")
 
 def transcribe(uri, mime, key):
     body = {"contents": [{"parts": [

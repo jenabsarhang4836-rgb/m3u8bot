@@ -136,10 +136,7 @@ def burn_subs(chat, src, tag, srt=SUBS):
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
                         "subtitles=" + srt + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=32,"
-                        "PrimaryColour=&H0000FFFF,OutlineColour=&H80000000,"
-                        "BackColour=&H00000000,BorderStyle=1,Outline=2,"
-                        "Shadow=0,MarginV=25,Alignment=2'",
+                        ":force_style='FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
@@ -242,10 +239,7 @@ def handle_small(chat, src, tag):
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=32,"
-                        "PrimaryColour=&H0000FFFF,OutlineColour=&H80000000,"
-                        "BackColour=&H00000000,BorderStyle=1,Outline=2,"
-                        "Shadow=0,MarginV=25,Alignment=2'",
+                        ":force_style='FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
@@ -346,9 +340,7 @@ def handle_auto(chat, url, tag):
     if not key:
         edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
         return
-    style = ("FontName=Vazirmatn,FontSize=32,PrimaryColour=&H0000FFFF,"
-             "OutlineColour=&H80000000,BackColour=&H00000000,BorderStyle=1,"
-             "Outline=2,Shadow=0,MarginV=25,Alignment=2")
+    style = "FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
@@ -402,10 +394,7 @@ def handle_auto(chat, url, tag):
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", mp4, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=32,"
-                        "PrimaryColour=&H0000FFFF,OutlineColour=&H80000000,"
-                        "BackColour=&H00000000,BorderStyle=1,Outline=2,"
-                        "Shadow=0,MarginV=25,Alignment=2'",
+                        ":force_style='FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
