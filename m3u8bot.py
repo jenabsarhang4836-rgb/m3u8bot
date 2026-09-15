@@ -136,7 +136,7 @@ def burn_subs(chat, src, tag, srt=SUBS):
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
                         "subtitles=" + srt + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2'",
+                        ":force_style='FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
@@ -164,20 +164,32 @@ def do_transcribe(chat, audio_path, tag, burn_video=None):
     if not key:
         send(chat, "❌ کلید Gemini ست نیست. اول /setkey KEY رو بفرست.")
         return
-    send(chat, "⏳ دارم می‌فرستم برای هوش مصنوعی...")
-    try:
-        uri, mime = gs.upload_file(audio_path, key)
-        send(chat, "🧠 داره زیرنویس رو می‌سازه (طول می‌کشه)...")
-        srt = gs.transcribe(uri, mime, key)
-    except Exception as e:
-        send(chat, f"❌ خطا: {str(e)[:200]}")
-        return
-    if " --> " not in srt:
-        send(chat, "❌ خروجی زیرنویس نشد. دوباره امتحان کن.")
-        return
     sp = f"{WORKDIR}/{tag}.srt"
-    open(sp, "w").write(clean_srt(srt))
-    send_doc(chat, sp, "📄 زیرنویس فارسی آماده‌ست!")
+    send(chat, "🧠 (۱/۲) تشخیص گفتار و زمان‌بندی دقیق با ویسپر...")
+    try:
+        import whisper_pipeline
+        ok = whisper_pipeline.run_pipeline(audio_path, sp, key)
+    except Exception as e:
+        print("whisper pipeline error:", e, flush=True)
+        ok = False
+
+    if not ok or not os.path.exists(sp):
+        send(chat, "⏳ استفاده از موتور پشتیبان Gemini...")
+        try:
+            uri, mime = gs.upload_file(audio_path, key)
+            srt = gs.transcribe(uri, mime, key)
+            if " --> " in srt:
+                open(sp, "w").write(clean_srt(srt))
+                ok = True
+        except Exception as e:
+            send(chat, f"❌ خطا: {str(e)[:200]}")
+            return
+
+    if not ok or not os.path.exists(sp):
+        send(chat, "❌ ساخت زیرنویس ناموفق بود.")
+        return
+
+    send_doc(chat, sp, "📄 زیرنویس سینک و ترجمه آماده شد!")
     if burn_video:
         burn_subs(chat, burn_video, tag + "b", srt=sp)
 
@@ -239,7 +251,7 @@ def handle_small(chat, src, tag):
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2'",
+                        ":force_style='FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
@@ -340,7 +352,7 @@ def handle_auto(chat, url, tag):
     if not key:
         edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
         return
-    style = "FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2"
+    style = "FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
@@ -394,7 +406,7 @@ def handle_auto(chat, url, tag):
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", mp4, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=20,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2'",
+                        ":force_style='FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
