@@ -139,15 +139,12 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Base size for 720p horizontal is ~12. 
-    # If vertical (w < h), subtitle should be slightly larger relative to width.
-    if w < h: # Vertical (e.g. 720x1280)
-        fs = 14
-    else: # Horizontal (e.g. 1280x720)
-        fs = 11
-    # Transparent black box: BackColour=&HC0000000 (A0 = ~60% transparent)
-    # PrimaryColour=&H0000FFFF (Yellow)
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HC0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
+    if w < h: 
+        fs = 13
+    else: 
+        fs = 10
+    # &HD0000000 = 80% transparent black background
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HD0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
@@ -271,9 +268,11 @@ def handle_small(chat, src, tag):
     w, h = get_video_res(src)
     style = get_style_for_res(w, h)
     edit(chat, mid, "🎬 (۳/۳) چسبوندن زیرنویس...")
+    w, h = get_video_res(mp4)
+    style = get_style_for_res(w, h)
     out = base + "_sub.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
-                        "-i", src, "-vf",
+                        "-i", mp4, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
                         ":force_style='" + style + "'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
@@ -428,11 +427,13 @@ def handle_auto(chat, url, tag):
     open(sp, "w").write(clean_srt(srt))
     send_doc(chat, sp, "📄 زیرنویس فارسی")
     edit(chat, mid, "🎬 (۴/۴) چسبوندن زیرنویس...")
+    w, h = get_video_res(mp4)
+    style = get_style_for_res(w, h)
     out = base + "_sub.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", mp4, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2'",
+                        ":force_style='" + style + "'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
