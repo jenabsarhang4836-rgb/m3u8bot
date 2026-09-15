@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 import gemini_sub as gs
 
@@ -51,8 +52,19 @@ def translate(texts, key):
         "%s/v1beta/models/%s:generateContent?key=%s" % (BASE, MODEL, key),
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=600) as r:
-        resp = json.loads(r.read().decode())
+    for _ in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                resp = json.loads(r.read().decode())
+                break
+        except urllib.request.HTTPError as e:
+            if e.code == 429 or e.code == 503:
+                print(f"Gemini {e.code}, waiting 15s...", flush=True)
+                time.sleep(15)
+                continue
+            raise
+    else:
+        raise Exception("Gemini API quota exceeded or overloaded.")
     txt = ""
     for c in resp.get("candidates", []):
         for p in (c.get("content") or {}).get("parts", []):
