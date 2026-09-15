@@ -151,9 +151,11 @@ def burn_subs(chat, src, tag, srt=SUBS):
     send(chat, "⏳دارم زیرنویس فارسی رو می‌چسبونم...")
     w, h = get_video_res(src)
     style = get_style_for_res(w, h)
+    edit(chat, mid, "🎬 (۳/۳) چسبوندن زیرنویس...")
+    out = base + "_sub.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
-                        "subtitles=" + srt + ":fontsdir=" + FONTS +
+                        "subtitles=" + sp + ":fontsdir=" + FONTS +
                         ":force_style='" + style + "'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
@@ -268,11 +270,9 @@ def handle_small(chat, src, tag):
     w, h = get_video_res(src)
     style = get_style_for_res(w, h)
     edit(chat, mid, "🎬 (۳/۳) چسبوندن زیرنویس...")
-    w, h = get_video_res(mp4)
-    style = get_style_for_res(w, h)
     out = base + "_sub.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
-                        "-i", mp4, "-vf",
+                        "-i", src, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
                         ":force_style='" + style + "'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
