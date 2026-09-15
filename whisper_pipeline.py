@@ -48,23 +48,28 @@ def translate(texts, key):
     )
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 65536}}
-    req = urllib.request.Request(
-        "%s/v1beta/models/%s:generateContent?key=%s" % (BASE, MODEL, key),
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json"})
-    for _ in range(5):
+    keys = gs.get_keys()
+    if not keys:
+        keys = [key]
+
+    for attempt in range(5):
+        current_key = keys[attempt % len(keys)]
+        req = urllib.request.Request(
+            "%s/v1beta/models/%s:generateContent?key=%s" % (BASE, MODEL, current_key),
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=600) as r:
                 resp = json.loads(r.read().decode())
                 break
         except urllib.request.HTTPError as e:
-            if e.code == 429 or e.code == 503:
-                print(f"Gemini {e.code}, waiting 15s...", flush=True)
-                time.sleep(15)
+            if e.code in (429, 503):
+                print(f"Gemini {e.code} with key ending in ...{current_key[-4:]}, trying next/waiting...", flush=True)
+                time.sleep(2)
                 continue
             raise
     else:
-        raise Exception("Gemini API quota exceeded or overloaded.")
+        raise Exception("Gemini API quota exceeded or overloaded on all keys.")
     txt = ""
     for c in resp.get("candidates", []):
         for p in (c.get("content") or {}).get("parts", []):
