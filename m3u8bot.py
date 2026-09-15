@@ -140,11 +140,11 @@ def get_video_res(path):
 
 def get_style_for_res(w, h):
     if w < h: 
-        fs = 13
+        fs = 17
     else: 
         fs = 10
     # &HD0000000 = 80% transparent black background
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HD0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HE6000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
