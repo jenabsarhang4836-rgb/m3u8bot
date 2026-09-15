@@ -268,7 +268,7 @@ def handle_small(chat, src, tag):
         return
     open(sp, "w").write(clean_srt(srt))
     send_doc(chat, sp, "📄 زیرنویس فارسی")
-        w, h = get_video_res(src)
+    w, h = get_video_res(src)
     style = get_style_for_res(w, h)
     edit(chat, mid, "🎬 (۳/۳) چسبوندن زیرنویس...")
     out = base + "_sub.mp4"
