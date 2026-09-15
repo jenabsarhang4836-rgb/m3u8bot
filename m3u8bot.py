@@ -130,13 +130,34 @@ def download_tg_file(file_id, dest):
         f.write(r.read())
     return True
 
+def get_video_res(path):
+    try:
+        out = subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", path])
+        w, h = map(int, out.decode().strip().split("x"))
+        return w, h
+    except:
+        return 1280, 720
+
+def get_style_for_res(w, h):
+    # Base size for 720p horizontal is ~12. 
+    # If vertical (w < h), subtitle should be slightly larger relative to width.
+    if w < h: # Vertical (e.g. 720x1280)
+        fs = 14
+    else: # Horizontal (e.g. 1280x720)
+        fs = 11
+    # Transparent black box: BackColour=&HA0000000 (A0 = ~60% transparent)
+    # PrimaryColour=&H0000FFFF (Yellow)
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HA0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
+
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
-    send(chat, "⏳ دارم زیرنویس فارسی رو می‌چسبونم...")
+    send(chat, "⏳دارم زیرنویس فارسی رو می‌چسبونم...")
+    w, h = get_video_res(src)
+    style = get_style_for_res(w, h)
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
                         "subtitles=" + srt + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2'",
+                        ":force_style='" + style + "'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
@@ -148,6 +169,7 @@ def burn_subs(chat, src, tag, srt=SUBS):
             os.remove(f)
         except OSError:
             pass
+
 
 def send_doc(chat, path, caption=""):
     try:
@@ -246,12 +268,14 @@ def handle_small(chat, src, tag):
         return
     open(sp, "w").write(clean_srt(srt))
     send_doc(chat, sp, "📄 زیرنویس فارسی")
+        w, h = get_video_res(src)
+    style = get_style_for_res(w, h)
     edit(chat, mid, "🎬 (۳/۳) چسبوندن زیرنویس...")
     out = base + "_sub.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
                         "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2'",
+                        ":force_style='" + style + "'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
@@ -369,6 +393,8 @@ def handle_auto(chat, url, tag):
         psrt = ""
     if " --> " in psrt:
         pout = base + "_pv_sub.mp4"
+        w, h = get_video_res(pv)
+        style = get_style_for_res(w, h)
         r0 = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads",
                              "2", "-i", pv, "-vf",
                              "subtitles=" + psp + ":fontsdir=" + FONTS +
