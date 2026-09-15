@@ -17,19 +17,14 @@ MODEL = "gemini-3.6-flash"
 def whisper_segments(path):
     from faster_whisper import WhisperModel
     m = WhisperModel("base", device="cpu", compute_type="int8", download_root="/tmp/models")
-    # word_timestamps=True forces the model to align text with audio strictly
     segs, _ = m.transcribe(path, language="tr", word_timestamps=True, vad_filter=True)
     out = []
     for s in segs:
         if s.words:
-            # use the precise start of the first word, and end of the last word!
             out.append((s.words[0].start, s.words[-1].end, s.text.strip()))
         else:
             out.append((s.start, s.end, s.text.strip()))
     return [o for o in out if o[2]]
-
-
-
 
 def to_ts(sec):
     ms = max(0, int(sec * 1000))
@@ -38,22 +33,18 @@ def to_ts(sec):
     s, ms = divmod(ms, 1000)
     return "%02d:%02d:%02d,%03d" % (h, mi, s, ms)
 
-
 def translate(texts, key):
     lines = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(texts))
-    prompt = ("Translate these Turkish subtitle lines to natural, colloquial Iranian Persian (فارسی محاوره‌ای و روان).
-"
-              "CRITICAL RULES:
-"
-              "1. You MUST keep the EXACT same line numbers. Do not merge or split lines.
-"
-              "2. Translate meaning naturally (not literal). Keep it short (max 38 chars).
-"
-              "3. Reply ONLY with the numbered list, like:
-1. سلام
-2. چطوری؟
-
-" + lines)
+    prompt = (
+        "You are an expert Turkish to Persian film subtitle translator.\n"
+        "Translate each numbered Turkish line into natural, colloquial everyday Iranian Persian (فارسی روان، محاوره‌ای و امروزی).\n"
+        "CRITICAL RULES:\n"
+        "1. NEVER translate proper nouns (names of people, places, brands). Transliterate them into Persian (e.g. 'Sarp' -> 'سارپ', NOT 'شیب').\n"
+        "2. Translate meaning and tone naturally, not word-for-word.\n"
+        "3. Keep lines concise (max 38 chars). Use \\n if a line is long.\n"
+        "4. Return ONLY numbered lines with the exact same numbers. No explanations.\n\n"
+        + lines
+    )
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 65536}}
     req = urllib.request.Request(
@@ -76,13 +67,11 @@ def translate(texts, key):
             out[int(num.strip())] = rest.strip().replace("\\n", "\n")
     return [out.get(i + 1, texts[i]) for i in range(len(texts))]
 
-
 def build_srt(segs, trans):
     blocks = []
     for i, ((a, b, _), t) in enumerate(zip(segs, trans)):
         blocks.append("%d\n%s --> %s\n%s" % (i + 1, to_ts(a), to_ts(b), t))
     return "\n\n".join(blocks) + "\n"
-
 
 def run_pipeline(audio_path, srt_path, key):
     print("whisper: extracting audio timestamps...", flush=True)
@@ -99,7 +88,6 @@ def run_pipeline(audio_path, srt_path, key):
         f.write(build_srt(segs, fa))
     print("SRT_OK: %d lines" % len(segs), flush=True)
     return True
-
 
 if __name__ == "__main__":
     if len(sys.argv) >= 4:
