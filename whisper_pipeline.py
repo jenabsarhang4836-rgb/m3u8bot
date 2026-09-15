@@ -16,31 +16,18 @@ MODEL = "gemini-3.6-flash"
 
 def whisper_segments(path):
     from faster_whisper import WhisperModel
-    # Using tiny/base cpu int8: fast and takes < 400MB RAM
-    m = WhisperModel("base", device="cpu", compute_type="int8",
-                     download_root="/tmp/models")
-    segs, _ = m.transcribe(path, language="tr", vad_filter=True,
-                           word_timestamps=True,
-                           vad_parameters={"min_silence_duration_ms": 400})
+    m = WhisperModel("base", device="cpu", compute_type="int8", download_root="/tmp/models")
+    # By using word_timestamps=False and simply relying on default segmenting (which is VAD-aware), 
+    # we get much better and native sync.
+    segs, _ = m.transcribe(path, language="tr", vad_filter=True, 
+                           vad_parameters={"min_silence_duration_ms": 300})
     out = []
     for s in segs:
-        words = [(w.start, w.end, w.word) for w in (s.words or [])]
-        if words and (s.end - s.start) > 6:
-            cur, cs = [], words[0][0]
-            for i, (ws, we, w) in enumerate(words):
-                cur.append(w)
-                gap = (words[i + 1][0] - we) if i + 1 < len(words) else 999
-                dur = we - cs
-                if (dur >= 3.5 and gap >= 0.5) or dur >= 6 or i == len(words) - 1:
-                    t = "".join(cur).strip()
-                    if t:
-                        out.append((cs, we, t))
-                    cur, cs = [], words[i + 1][0] if i + 1 < len(words) else we
-        else:
-            t = (s.text or "").strip()
-            if t:
-                out.append((s.start, s.end, t))
+        t = s.text.strip()
+        if t:
+            out.append((s.start, s.end, t))
     return out
+
 
 
 def to_ts(sec):
@@ -53,12 +40,19 @@ def to_ts(sec):
 
 def translate(texts, key):
     lines = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(texts))
-    prompt = ("You are an expert Turkish to Persian film subtitle translator.\n"
-              "Translate each numbered Turkish line into natural, colloquial everyday Iranian Persian (فارسی روان، محاوره‌ای و امروزی).\n"
-              "Rules:\n"
-              "1. Translate meaning and tone naturally, not word-for-word.\n"
-              "2. Keep lines concise (max 38 characters per line). Use \\n if a line is long.\n"
-              "3. Return ONLY numbered lines with the exact same numbers (e.g. 1. متن فارسی). No explanations.\n\n" + lines)
+    prompt = ("Translate these Turkish subtitle lines to natural, colloquial Iranian Persian (فارسی محاوره‌ای و روان).
+"
+              "CRITICAL RULES:
+"
+              "1. You MUST keep the EXACT same line numbers. Do not merge or split lines.
+"
+              "2. Translate meaning naturally (not literal). Keep it short (max 38 chars).
+"
+              "3. Reply ONLY with the numbered list, like:
+1. سلام
+2. چطوری؟
+
+" + lines)
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 65536}}
     req = urllib.request.Request(

@@ -145,9 +145,9 @@ def get_style_for_res(w, h):
         fs = 14
     else: # Horizontal (e.g. 1280x720)
         fs = 11
-    # Transparent black box: BackColour=&HA0000000 (A0 = ~60% transparent)
+    # Transparent black box: BackColour=&HC0000000 (A0 = ~60% transparent)
     # PrimaryColour=&H0000FFFF (Yellow)
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HA0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HC0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
