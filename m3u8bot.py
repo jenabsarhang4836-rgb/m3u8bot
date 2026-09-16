@@ -170,15 +170,16 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Balanced font size: 9 for vertical (reels/shorts), 8.5 for horizontal
-    # Perfectly readable without being bulky or too small.
+    # Distinct sizing:
+    # Vertical (reels/shorts): Large & punchy font (17) for mobile screens!
+    # Horizontal (landscape/YouTube): Compact font (9) so it doesn't block the scene.
     if w < h:
-        fs = 9
-        margin_v = 16
+        fs = 17
+        margin_v = 24
     else:
-        fs = 8.5
+        fs = 9
         margin_v = 12
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.0,Shadow=0,MarginV={margin_v},Alignment=2"
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
@@ -451,7 +452,10 @@ def handle_auto(chat, url, tag, uid=None):
     if not key:
         edit(chat, mid, "❌ شما هنوز کلید اختصاصی Gemini خود را ثبت نکرده‌اید!\nبرای دریافت و ثبت کلید رایگان از دستور /setkey استفاده کنید.")
         return
-    style = f"FontName=Vazirmatn,FontSize=9,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.0,Shadow=0,MarginV=16,Alignment=2"
+    w_pv, h_pv = get_video_res(pv)
+    fs_pv = 17 if w_pv < h_pv else 9
+    margin_pv = 24 if w_pv < h_pv else 12
+    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_pv},Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
