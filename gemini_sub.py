@@ -35,9 +35,10 @@ def get_key():
 def get_scale():
     c = _cfg()
     try:
-        return float(c.get("sub_scale", 0.035))
+        val = float(c.get("sub_scale", 0.018))
+        return 0.018 if val > 0.025 else val
     except (ValueError, TypeError):
-        return 0.035
+        return 0.018
 
 def set_scale(val):
     c = _cfg()

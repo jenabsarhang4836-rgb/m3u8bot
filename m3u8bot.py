@@ -169,11 +169,14 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
+    # Delicate, sleek subtitle font (not oversized). Around 1.6% to 1.8% of height
     scale = gs.get_scale()
-    fs = int(h * scale)
-    fs = max(10, min(60, fs))
-    margin_v = max(10, int(h * 0.02))
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV={margin_v},Alignment=2"
+    # Default to 0.018 if not set or if set to old large values
+    if scale > 0.025:
+        scale = 0.018
+    fs = max(11, min(28, int(h * scale)))
+    margin_v = max(8, int(h * 0.015))
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
