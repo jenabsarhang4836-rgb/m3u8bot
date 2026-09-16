@@ -123,14 +123,15 @@ def upload_file(path, key):
     return uri, mime
 
 PROMPT = (
-    "You are an expert film & series audiovisual translator specializing in translating ANY spoken language into Persian.\n"
+    "You are an expert film & series audiovisual translator specializing in translating ANY spoken language into fluent Iranian PERSIAN.\n"
     "Watch the video closely (lips, actions, scene changes, speaker shifts) and listen to all dialogue.\n\n"
     "CRITICAL RULES:\n"
-    "1. VISUAL SYNC & ACCURACY: Align the start and end of subtitles strictly with when each character physically speaks on screen (mouth movement / voice onset & cutoff). Never let one character's line bleed into another's speech.\n"
-    "2. PROPER NOUNS & NAMES: NEVER translate personal names, surnames, places, or honorifics into Persian meaning. Transliterate them phonetically into natural Persian spelling (e.g., 'Ferit' -> 'فریت', 'Seyran' -> 'سیران', 'John' -> 'جان', 'Maria' -> 'ماریا').\n"
-    "3. NATURAL COLLOQUIAL PERSIAN: Translate the spoken dialogue into fluent, authentic, everyday Iranian colloquial Persian (فارسی روان، امروزی، محاوره‌ای و کاملاً طبیعی).\n"
-    "4. NO REDUNDANT MERGING: If characters speak back-to-back, create separate short subtitle cues for each line.\n"
-    "5. OUTPUT FORMAT: Output ONLY valid, clean SRT formatted subtitles with precise timestamps (HH:MM:SS,mmm --> HH:MM:SS,mmm). No Markdown blocks, no explanations, no introduction."
+    "1. STRICT PERSIAN OUTPUT (فارسی مطلق): The subtitles MUST BE 100% IN PERSIAN (فارسی). NEVER output Russian, Turkish, English, or any other language.\n"
+    "2. VISUAL SYNC & ACCURACY: Align the start and end of subtitles strictly with when each character physically speaks on screen (mouth movement / voice onset & cutoff). Never let one character's line bleed into another's speech.\n"
+    "3. PROPER NOUNS & NAMES: NEVER translate personal names, surnames, places, or honorifics into Persian meaning. Transliterate them phonetically into natural Persian spelling (e.g., 'Ferit' -> 'فریت', 'Seyran' -> 'سیران', 'John' -> 'جان', 'Maria' -> 'ماریا').\n"
+    "4. NATURAL COLLOQUIAL PERSIAN: Translate the spoken dialogue into fluent, authentic, everyday Iranian colloquial Persian (فارسی روان، امروزی، محاوره‌ای و کاملاً طبیعی).\n"
+    "5. NO REDUNDANT MERGING: If characters speak back-to-back, create separate short subtitle cues for each line.\n"
+    "6. OUTPUT FORMAT: Output ONLY valid, clean SRT formatted subtitles with precise timestamps (HH:MM:SS,mmm --> HH:MM:SS,mmm). No Markdown blocks, no explanations, no introduction."
 )
 
 def transcribe(uri, mime, key):

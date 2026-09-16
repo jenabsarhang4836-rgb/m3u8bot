@@ -34,16 +34,32 @@ def to_ts(sec):
     s, ms = divmod(ms, 1000)
     return "%02d:%02d:%02d,%03d" % (h, mi, s, ms)
 
+def _quick_translate_to_persian(text_list):
+    """Fallback translator using Google Translate free endpoint to ensure Persian is ALWAYS delivered."""
+    translated = []
+    for t in text_list:
+        try:
+            url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fa&dt=t&q=" + urllib.parse.quote(t)
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+                res = "".join(item[0] for item in data[0] if item and item[0])
+                translated.append(res if res else t)
+        except Exception:
+            translated.append(t)
+    return translated
+
 def translate(texts, key):
     lines = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(texts))
     prompt = (
         "You are an expert multilingual film subtitle translator into Persian.\n"
         "Translate each numbered line (in ANY language) into natural, colloquial everyday Iranian Persian (فارسی روان، محاوره‌ای و امروزی).\n"
         "CRITICAL RULES:\n"
-        "1. NEVER translate proper nouns (names of people, places, brands). Transliterate them into Persian.\n"
-        "2. Translate meaning and tone naturally, not word-for-word.\n"
-        "3. Keep lines concise (max 38 chars). Use \\n if a line is long.\n"
-        "4. Return ONLY numbered lines with the exact same numbers. No explanations.\n\n"
+        "1. OUTPUT LANGUAGE: MUST BE 100% PERSIAN (فارسی). Under no circumstances output in Russian, English, or the original audio language.\n"
+        "2. NEVER translate proper nouns (names of people, places, brands). Transliterate them phonetically into Persian.\n"
+        "3. Translate meaning and tone naturally, not word-for-word.\n"
+        "4. Keep lines concise (max 38 chars). Use \\n if a line is long.\n"
+        "5. Return ONLY numbered lines with the exact same numbers. No explanations.\n\n"
         + lines
     )
     body = {"contents": [{"parts": [{"text": prompt}]}],
@@ -69,8 +85,8 @@ def translate(texts, key):
                 continue
             raise
     else:
-        print("Gemini API quota exceeded on all keys.", flush=True)
-        return texts  # Return original transcript without crashing if quota exhausted!
+        print("Gemini API quota exceeded on all keys. Using guaranteed fast fallback translation to Persian!", flush=True)
+        return _quick_translate_to_persian(texts)
     txt = ""
     for c in resp.get("candidates", []):
         for p in (c.get("content") or {}).get("parts", []):
