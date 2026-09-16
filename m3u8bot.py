@@ -482,8 +482,18 @@ def handle_auto(chat, url, tag, uid=None):
             return
         src = dl
     p = subprocess.Popen(
-        ["ffmpeg", "-y", "-v", "error", "-i", src, "-c", "copy", mp4])
+        ["ffmpeg", "-y", "-v", "error",
+         "-rw_timeout", "15000000", "-timeout", "15000000",
+         "-i", src, "-c", "copy", mp4])
+    deadline = time.time() + 600  # max 10 min per download, then kill
     while p.poll() is None:
+        if time.time() > deadline:
+            try:
+                p.kill()
+            except OSError:
+                pass
+            p.wait()
+            break
         time.sleep(20)
         if os.path.exists(mp4):
             edit(chat, mid, "⏳ (۱/۴) دانلود: %.0f مگ..." % (os.path.getsize(mp4) / 1048576))
@@ -590,8 +600,18 @@ def handle_job(chat, url, tag):
             return
         src = dl
     p = subprocess.Popen(
-        ["ffmpeg", "-y", "-v", "error", "-i", src, "-c", "copy", mp4])
+        ["ffmpeg", "-y", "-v", "error",
+         "-rw_timeout", "15000000", "-timeout", "15000000",
+         "-i", src, "-c", "copy", mp4])
+    deadline = time.time() + 600  # max 10 min per download, then kill
     while p.poll() is None:
+        if time.time() > deadline:
+            try:
+                p.kill()
+            except OSError:
+                pass
+            p.wait()
+            break
         time.sleep(15)
         if os.path.exists(mp4):
             mb = os.path.getsize(mp4) / 1048576
