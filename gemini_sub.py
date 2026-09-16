@@ -12,24 +12,43 @@ def _cfg():
     except OSError:
         return {}
 
-def set_user_key(uid, key_str):
+USER_KEYS_FILE = "/data/user_gemini_keys.json"
+
+def _load_user_keys():
+    try:
+        if os.path.exists(USER_KEYS_FILE):
+            return json.load(open(USER_KEYS_FILE))
+    except Exception:
+        pass
+    return _cfg().get("user_gemini_keys", {})
+
+def _save_user_keys(keys_dict):
+    try:
+        os.makedirs(os.path.dirname(USER_KEYS_FILE), exist_ok=True)
+        json.dump(keys_dict, open(USER_KEYS_FILE, "w"))
+    except Exception:
+        pass
     c = _cfg()
-    user_keys = c.get("user_gemini_keys", {})
+    c["user_gemini_keys"] = keys_dict
+    try:
+        json.dump(c, open(CFG, "w"))
+    except Exception:
+        pass
+
+def set_user_key(uid, key_str):
+    user_keys = _load_user_keys()
     key_str = key_str.strip()
     user_keys[str(uid)] = key_str
-    c["user_gemini_keys"] = user_keys
-    json.dump(c, open(CFG, "w"))
+    _save_user_keys(user_keys)
     return bool(key_str)
 
 def get_user_key(uid, is_admin=False):
-    c = _cfg()
-    user_keys = c.get("user_gemini_keys", {})
+    user_keys = _load_user_keys()
     k = user_keys.get(str(uid), "").strip()
     if k:
         return k
-    if is_admin:
-        return get_key()
-    return ""
+    # Fallback to server key so users NEVER get blocked or annoyed
+    return get_key()
 
 def set_key(keys_str):
     c = _cfg()

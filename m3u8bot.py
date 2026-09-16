@@ -225,10 +225,9 @@ def do_transcribe(chat, audio_path, tag, burn_video=None, uid=None):
     is_admin = str(uid) in ADMIN if uid else False
     key = gs.get_user_key(uid, is_admin=is_admin) if uid else gs.get_key()
     if not key:
-        send(chat, "❌ شما هنوز کلید اختصاصی Gemini خود را ثبت نکرده‌اید!\n\nبرای استفاده، ابتدا با زدن دکمه زیر کلید رایگان خود را از گوگل دریافت کنید و سپس آن را بفرستید:", kb={"inline_keyboard": [
-            [{"text": "🌐 دریافت رایگان کلید Gemini", "url": "https://aistudio.google.com/app/apikey"}],
-            [{"text": "🔑 ثبت کلید", "callback_data": "h:setkey"}]
-        ]})
+        key = gs.get_key()
+    if not key:
+        send(chat, "❌ سرویس موقتاً با مشکل مواجه شده است. لطفاً چند دقیقه دیگر امتحان کنید.")
         return
     sp = f"{WORKDIR}/{tag}.srt"
     ok = False
@@ -450,7 +449,9 @@ def handle_auto(chat, url, tag, uid=None):
     is_admin = str(uid) in ADMIN if uid else False
     key = gs.get_user_key(uid, is_admin=is_admin) if uid else gs.get_key()
     if not key:
-        edit(chat, mid, "❌ شما هنوز کلید اختصاصی Gemini خود را ثبت نکرده‌اید!\nبرای دریافت و ثبت کلید رایگان از دستور /setkey استفاده کنید.")
+        key = gs.get_key()
+    if not key:
+        edit(chat, mid, "❌ سرویس موقتاً با مشکل مواجه شده است.")
         return
     w_pv, h_pv = get_video_res(pv)
     fs_pv = 17 if w_pv < h_pv else 9
