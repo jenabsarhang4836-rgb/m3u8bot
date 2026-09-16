@@ -137,6 +137,7 @@ def edit(chat, mid, text, kb=None):
 
 SUBS = os.environ.get("SUBS_PATH", str(BASE_DIR / "subs.srt"))
 FONTS = os.environ.get("FONTS_DIR", str(BASE_DIR / "fonts"))
+WATERMARK = os.path.join(FONTS, "watermark.png")
 
 def send_video(chat, path, caption=""):
     try:
@@ -184,15 +185,24 @@ def burn_subs(chat, src, tag, srt=SUBS):
     send(chat, "🎬 (۳/۳) چسبوندن زیرنویس فارسی...")
     w, h = get_video_res(src)
     style = get_style_for_res(w, h)
-    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
-                        "-i", src, "-vf",
-                        f"subtitles={srt}:fontsdir={FONTS}:force_style='{style}'",
-                        "-c:v", "libx264", "-crf", "23", "-preset",
-                        "fast", "-c:a", "copy", out])
+    
+    # Check if watermark badge exists to embed branding
+    if os.path.exists(WATERMARK):
+        fc = f"[0:v]subtitles={srt}:fontsdir={FONTS}:force_style='{style}'[v1];[v1][1:v]overlay=x=(W-w)/2:y=H-h-10[vout]"
+        cmd = ["ffmpeg", "-y", "-v", "error", "-threads", "2",
+               "-i", src, "-i", WATERMARK,
+               "-filter_complex", fc, "-map", "[vout]", "-map", "0:a?",
+               "-c:v", "libx264", "-crf", "23", "-preset", "fast", "-c:a", "copy", out]
+    else:
+        cmd = ["ffmpeg", "-y", "-v", "error", "-threads", "2",
+               "-i", src, "-vf", f"subtitles={srt}:fontsdir={FONTS}:force_style='{style}'",
+               "-c:v", "libx264", "-crf", "23", "-preset", "fast", "-c:a", "copy", out]
+
+    r = subprocess.run(cmd)
     if r.returncode != 0 or not os.path.exists(out):
         send(chat, "❌ نشد. ویدیو خرابه یا سنگینه.")
         return
-    send_video(chat, out, "✅ زیرنویس چسبید!")
+    send_video(chat, out, "✅ زیرنویس چسبید!\n📢 @ArzanVpns")
     for f in (src, out):
         try:
             os.remove(f)
