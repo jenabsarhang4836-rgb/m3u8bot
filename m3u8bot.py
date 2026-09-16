@@ -152,15 +152,12 @@ def get_style_for_res(w, h):
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
-    send(chat, "⏳دارم زیرنویس فارسی رو می‌چسبونم...")
+    send(chat, "🎬 (۳/۳) چسبوندن زیرنویس فارسی...")
     w, h = get_video_res(src)
     style = get_style_for_res(w, h)
-    edit(chat, mid, "🎬 (۳/۳) چسبوندن زیرنویس...")
-    out = base + "_sub.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
                         "-i", src, "-vf",
-                        "subtitles=" + sp + ":fontsdir=" + FONTS +
-                        ":force_style='" + style + "'",
+                        f"subtitles={srt}:fontsdir={FONTS}:force_style='{style}'",
                         "-c:v", "libx264", "-crf", "23", "-preset",
                         "fast", "-c:a", "copy", out])
     if r.returncode != 0 or not os.path.exists(out):
