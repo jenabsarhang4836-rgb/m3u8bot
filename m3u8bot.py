@@ -63,15 +63,30 @@ def tg(method, payload=None, timeout=60):
 
 def is_member(user_id):
     """Return True if REQUIRED_CHANNEL is set and the user is a member/subscriber."""
-    if not REQUIRED_CHANNEL:
+    if not REQUIRED_CHANNEL or str(user_id) in ADMIN:
         return True
     try:
-        r = tg("getChatMember", {"chat_id": REQUIRED_CHANNEL, "user_id": user_id})
+        r = tg("getChatMember", {"chat_id": REQUIRED_CHANNEL, "user_id": int(user_id)})
+        if not r.get("ok"):
+            print(f"membership check API error: {r}", flush=True)
+            # If bot is not admin in channel, don't permanently lock out users
+            if "administrator rights" in str(r).lower() or "chat_admin_required" in str(r).lower():
+                return True
+            return False
         status = (r.get("result") or {}).get("status", "")
         return status in ("creator", "administrator", "member", "restricted")
     except Exception as e:
         print("membership check failed:", e, flush=True)
         return False
+
+def join_channel_kb():
+    ch_url = f"https://t.me/{REQUIRED_CHANNEL.lstrip('@')}" if REQUIRED_CHANNEL.startswith('@') else "https://t.me/ArzanVpns"
+    return {
+        "inline_keyboard": [
+            [{"text": "📢 عضویت در کانال", "url": ch_url}],
+            [{"text": "🔄 بررسی مجدد / شروع", "callback_data": "check_join"}]
+        ]
+    }
 
 def send(chat, text, kb=None):
     try:
@@ -108,13 +123,15 @@ def main_kb():
 
 PENDING_KEY = set()
 
-def edit(chat, mid, text):
+def edit(chat, mid, text, kb=None):
     if not mid:
         return
     try:
-        tg("editMessageText", {"chat_id": chat, "message_id": mid,
-                               "text": text,
-                               "disable_web_page_preview": True})
+        p = {"chat_id": chat, "message_id": mid,
+             "text": text, "disable_web_page_preview": True}
+        if kb:
+            p["reply_markup"] = kb
+        tg("editMessageText", p)
     except Exception as e:
         print("edit fail:", e, flush=True)
 
@@ -558,29 +575,46 @@ def main():
             cb = up.get("callback_query")
             if cb:
                 cuid = str(((cb.get("from") or {}).get("id")))
-                if cuid not in ADMIN:
-                    continue
-                answer(cb.get("id"))
+                cb_id = cb.get("id")
+                answer(cb_id)
                 data = cb.get("data") or ""
+                m = cb.get("message") or {}
+                ch = (m.get("chat") or {}).get("id")
+                mid = m.get("message_id")
+                
+                if data == "check_join":
+                    if is_member(cuid):
+                        edit(ch, mid, HELP_MAIN, kb=main_kb())
+                    else:
+                        send(ch, "❌ هنوز در کانال عضو نشدید! لطفاً عضو شوید و سپس دکمه زیر را بزنید:", kb=join_channel_kb())
+                    continue
+
                 if data.startswith("h:"):
-                    m = cb.get("message") or {}
-                    ch = (m.get("chat") or {}).get("id")
-                    mid = m.get("message_id")
                     if data == "h:setkey":
-                        PENDING_KEY.add(str(ch))
-                        edit(ch, mid, "🔑 کلید Gemini رو بفرست:")
+                        if cuid in ADMIN:
+                            PENDING_KEY.add(str(ch))
+                            edit(ch, mid, "🔑 کلید Gemini رو بفرست:")
+                        else:
+                            edit(ch, mid, "⛔️ این بخش فقط مخصوص ادمین ربات است.")
                     else:
                         edit(ch, mid, HELP.get(data[2:], HELP_MAIN))
                 continue
+
             m = up.get("message") or {}
             uid = str((m.get("from") or {}).get("id"))
             chat = (m.get("chat") or {}).get("id")
             text = (m.get("text") or "").strip()
-            if uid not in ADMIN:
-                continue
+
+            # Membership gate for ALL non-admin users
             if not is_member(uid):
-                send(chat, "⛔️ برای استفاده از این ربات، ابتدا در کانال سازنده عضو شوید:\n" + (REQUIRED_CHANNEL if REQUIRED_CHANNEL.startswith("@") else "لینک کانال در پروفایل بات"))
+                send(chat, "⛔️ برای استفاده از ربات، لطفاً ابتدا در کانال زیر عضو شوید و سپس روی «بررسی مجدد» بزنید:", kb=join_channel_kb())
                 continue
+
+            # Admin-only commands
+            if text.startswith("/setkey") or text == "/key" or text.startswith("/font"):
+                if uid not in ADMIN:
+                    send(chat, "⛔️ این دستور فقط برای ادمین ربات مجاز است.")
+                    continue
             if uid in PENDING_KEY and text and not text.startswith("/"):
                 gs.set_key(text)
                 PENDING_KEY.discard(uid)
