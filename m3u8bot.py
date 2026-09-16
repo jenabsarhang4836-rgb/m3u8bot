@@ -45,6 +45,7 @@ TOKEN = os.environ.get("BOT_TOKEN", "")
 if not TOKEN:
     raise SystemExit("BOT_TOKEN env is required")
 ADMIN = {a.strip() for a in os.environ.get("ADMIN_IDS", "").split(",") if a.strip()}
+REQUIRED_CHANNEL = os.environ.get("REQUIRED_CHANNEL", "").strip()  # e.g. @YourChannel or -1001234567890
 API = f"https://api.telegram.org/bot{TOKEN}"
 WORKDIR = os.environ.get("WORKDIR", "/tmp/m3ubot")
 YTDL = [sys.executable, "-m", "yt_dlp"]
@@ -59,6 +60,18 @@ def tg(method, payload=None, timeout=60):
         headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
+
+def is_member(user_id):
+    """Return True if REQUIRED_CHANNEL is set and the user is a member/subscriber."""
+    if not REQUIRED_CHANNEL:
+        return True
+    try:
+        r = tg("getChatMember", {"chat_id": REQUIRED_CHANNEL, "user_id": user_id})
+        status = (r.get("result") or {}).get("status", "")
+        return status in ("creator", "administrator", "member", "restricted")
+    except Exception as e:
+        print("membership check failed:", e, flush=True)
+        return False
 
 def send(chat, text, kb=None):
     try:
@@ -139,13 +152,14 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Adaptive sizing: scale font to the SHORTER side of the video so it stays
-    # consistent across orientations and resolutions (not tied to height/width alone),
-    # then clamp to readable bounds.
+    # Subtitle font scales with VIDEO HEIGHT (standard for subtitles, which
+    # occupy vertical space at the bottom). Tunable live via SUB_SCALE env
+    # (fraction of height). Default 3.5% — readable, not oversized.
+    scale = float(os.environ.get("SUB_SCALE", "0.035"))
     short = min(w, h)
-    fs = int(short * 0.045)
-    fs = max(12, min(54, fs))
-    margin_v = max(12, int(short * 0.025))
+    fs = int(h * scale)
+    fs = max(10, min(60, fs))
+    margin_v = max(10, int(h * 0.02))
     return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
@@ -406,9 +420,9 @@ def handle_auto(chat, url, tag):
         edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
         return
     pv_res = get_video_res(pv)
-    short_pv = min(pv_res[0], pv_res[1])
-    fs_pv = max(12, min(54, int(short_pv * 0.045)))
-    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV=20,Alignment=2"
+    scale = float(os.environ.get("SUB_SCALE", "0.035"))
+    fs_pv = max(10, min(60, int(pv_res[1] * scale)))
+    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV=18,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
@@ -567,6 +581,9 @@ def main():
             chat = (m.get("chat") or {}).get("id")
             text = (m.get("text") or "").strip()
             if uid not in ADMIN:
+                continue
+            if not is_member(uid):
+                send(chat, "⛔️ برای استفاده از این ربات، ابتدا در کانال سازنده عضو شوید:\n" + (REQUIRED_CHANNEL if REQUIRED_CHANNEL.startswith("@") else "لینک کانال در پروفایل بات"))
                 continue
             if uid in PENDING_KEY and text and not text.startswith("/"):
                 gs.set_key(text)
