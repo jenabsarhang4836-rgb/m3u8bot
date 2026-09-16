@@ -32,15 +32,16 @@ def split_audio(audio_path, out_dir, chunk_len=CHUNK_SECONDS):
     idx = 0
     while start < duration:
         length = min(chunk_len, duration - start)
-        chunk_path = os.path.join(out_dir, f"chunk_{idx:03d}.mp3")
+        chunk_path = os.path.join(out_dir, f"chunk_{idx:03d}.wav")
+        # Place -i before -ss for exact audio frame seeking without drift
         cmd = [
             "ffmpeg", "-y", "-v", "error",
-            "-ss", str(start),
             "-i", audio_path,
+            "-ss", str(start),
             "-t", str(length),
-            "-acodec", "libmp3lame",
-            "-b:a", "64k",
+            "-ar", "16000",
             "-ac", "1",
+            "-c:a", "pcm_s16le",
             chunk_path
         ]
         subprocess.run(cmd, check=True)

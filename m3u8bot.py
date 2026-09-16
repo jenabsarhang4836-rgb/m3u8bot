@@ -139,12 +139,16 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
+    # Professional modern subtitle style:
+    # BorderStyle=1 (sharp outline, no blocky background box)
+    # Balanced font sizes for mobile/reels (12) and desktop (9)
     if w < h: 
-        fs = 17
+        fs = 12
+        margin_v = 28
     else: 
-        fs = 10
-    # &HD0000000 = 80% transparent black background
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,BackColour=&HE6000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=15,Alignment=2"
+        fs = 9
+        margin_v = 18
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.8,Shadow=0.8,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
@@ -375,7 +379,7 @@ def handle_auto(chat, url, tag):
     if not key:
         edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
         return
-    style = "FontName=Vazirmatn,FontSize=15,PrimaryColour=&H0000FFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=14,Alignment=2"
+    style = "FontName=Vazirmatn,FontSize=11,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.8,Shadow=0.8,MarginV=20,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",

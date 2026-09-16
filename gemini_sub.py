@@ -169,10 +169,12 @@ def transcribe_chunked(audio_path, key, chunk_sec=300, progress_cb=None):
     try:
         for i in range(n):
             start = i * chunk_sec
-            ch = os.path.join(tmpd, "ch%d.mp3" % i)
-            subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", str(start),
-                            "-t", str(chunk_sec), "-i", audio_path,
-                            "-c:a", "libmp3lame", "-b:a", "128k", ch],
+            ch = os.path.join(tmpd, "ch%d.wav" % i)
+            # IMPORTANT: place -i BEFORE -ss so ffmpeg does sample-accurate
+            # seeking (no drift). Use pcm_s16le 16k WAV (CBR, no mp3 padding delay)
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", audio_path,
+                            "-ss", str(start), "-t", str(chunk_sec),
+                            "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", ch],
                            check=True)
             if progress_cb:
                 progress_cb(i + 1, n)
