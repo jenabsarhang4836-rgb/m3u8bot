@@ -232,6 +232,39 @@ def send_doc(chat, path, caption=""):
     except Exception as e:
         print("sendDoc fail:", e, flush=True)
 
+GH_REPO = "jenabsarhang4836-rgb/subtitle-runner"
+
+def cloud_available(uid):
+    gh = os.environ.get("GITHUB_TOKEN", "").strip()
+    key = gs.get_user_key(uid, is_admin=str(uid) in ADMIN) if uid else gs.get_key()
+    return bool(gh and key), gh, key
+
+def dispatch_cloud(chat, uid, file_id, tag):
+    """Offload heavy processing to GitHub Actions runner (fast, free). Returns True if dispatched."""
+    ok, gh, key = cloud_available(uid)
+    if not ok:
+        return False
+    payload = {
+        "event_type": "process_video",
+        "client_payload": {
+            "chat_id": str(chat), "file_id": file_id,
+            "gemini_key": key, "tag": tag,
+            "bot_token": TOKEN,
+        }
+    }
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{GH_REPO}/dispatches",
+        data=json.dumps(payload).encode(),
+        headers={"Authorization": f"token {gh}",
+                 "Accept": "application/vnd.github+json",
+                 "User-Agent": "aisubfa-bot"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status in (200, 204)
+    except Exception as e:
+        print("dispatch fail:", e, flush=True)
+        return False
+
 def do_transcribe(chat, audio_path, tag, burn_video=None, uid=None):
     is_admin = str(uid) in ADMIN if uid else False
     key = gs.get_user_key(uid, is_admin=is_admin) if uid else gs.get_key()
@@ -693,6 +726,10 @@ def main():
             fid = vid.get("file_id") or (doc.get("file_id") if dmt.startswith("video") else None)
             if fid:
                 fsize = vid.get("file_size") or doc.get("file_size") or 0
+                # Prefer cloud processing (GitHub Actions: fast, free CPU, fresh disk)
+                if dispatch_cloud(chat, uid, fid, f"v{up['update_id']}"):
+                    send(chat, "☁️ پردازش روی سرور ابری آغاز شد — بدون اشغال سرور اصلی، خیلی سریع‌تر انجام می‌شه.\nنتیجه همین‌جا ارسال می‌شه ✅")
+                    continue
                 if fsize > 19 * 1024 * 1024:
                     send(chat, "❌ فایل بالای ۱۹ مگه، تلگرام به ربات بیشتر نمیده.")
                     continue
