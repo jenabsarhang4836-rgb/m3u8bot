@@ -181,6 +181,18 @@ def get_style_for_res(w, h):
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
+    # Clean stale temp files older than 30 minutes to prevent disk-full failures
+    try:
+        now = time.time()
+        for f in os.listdir(WORKDIR):
+            fp = os.path.join(WORKDIR, f)
+            if os.path.isfile(fp) and (now - os.path.getmtime(fp) > 1800):
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
+    except Exception:
+        pass
     send(chat, "🎬 (۳/۳) چسبوندن زیرنویس فارسی...")
     w, h = get_video_res(src)
     style = get_style_for_res(w, h)
@@ -197,8 +209,9 @@ def burn_subs(chat, src, tag, srt=SUBS):
                "-i", src, "-vf", f"subtitles={srt}:fontsdir={FONTS}:force_style='{style}'",
                "-c:v", "libx264", "-crf", "23", "-preset", "fast", "-c:a", "copy", out]
 
-    r = subprocess.run(cmd)
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0 or not os.path.exists(out):
+        print("FFMPEG ERROR:", r.stderr[-500:], flush=True)
         send(chat, "❌ نشد. ویدیو خرابه یا سنگینه.")
         return
     send_video(chat, out, "✅ زیرنویس چسبید!\n📢 @ArzanVpns")
