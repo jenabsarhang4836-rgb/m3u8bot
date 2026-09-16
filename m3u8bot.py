@@ -139,16 +139,15 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Professional modern subtitle style:
-    # BorderStyle=1 (sharp outline, no blocky background box)
-    # Balanced font sizes for mobile/reels (12) and desktop (9)
+    # Modern translucent dark tint background (clean & soft, not pitch-black)
+    # White readable font with gentle outline
     if w < h: 
         fs = 12
         margin_v = 28
     else: 
         fs = 9
         margin_v = 18
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.8,Shadow=0.8,MarginV={margin_v},Alignment=2"
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
@@ -187,21 +186,52 @@ def do_transcribe(chat, audio_path, tag, burn_video=None):
         send(chat, "❌ کلید Gemini ست نیست. اول /setkey KEY رو بفرست.")
         return
     sp = f"{WORKDIR}/{tag}.srt"
-    send(chat, "🧠 (۱/۲) تشخیص گفتار و زمان‌بندی دقیق با ویسپر...")
-    try:
-        import whisper_pipeline
-        ok = whisper_pipeline.run_pipeline(audio_path, sp, key)
-    except Exception as e:
-        print("whisper pipeline error:", e, flush=True)
-        ok = False
+    ok = False
 
+    # 1. If we have a video, use Gemini Multimodal Vision + Audio for perfect lip-sync & speaker recognition
+    if burn_video and os.path.exists(burn_video):
+        send(chat, "👀 (۱/۲) تحلیل ویدیویی و تطبیق چهره‌ها و صدا با Gemini...")
+        compressed_video = f"{WORKDIR}/{tag}_vision.mp4"
+        try:
+            # Compress video to lightweight 360p fast copy so upload takes ~2 seconds
+            subprocess.run([
+                "ffmpeg", "-y", "-v", "error", "-i", burn_video,
+                "-vf", "scale=-2:360", "-c:v", "libx264", "-crf", "32",
+                "-preset", "ultrafast", "-c:a", "aac", "-b:a", "96k",
+                compressed_video
+            ], timeout=180)
+            if os.path.exists(compressed_video):
+                uri, mime = gs.upload_file(compressed_video, key)
+                srt = gs.transcribe(uri, mime, key)
+                if " --> " in srt:
+                    open(sp, "w", encoding="utf-8").write(clean_srt(srt))
+                    ok = True
+        except Exception as e:
+            print("visual transcription error:", e, flush=True)
+        finally:
+            try:
+                if os.path.exists(compressed_video):
+                    os.remove(compressed_video)
+            except OSError:
+                pass
+
+    # 2. Fallback to whisper pipeline if video processing failed or only audio provided
+    if not ok:
+        send(chat, "🧠 تشخیص گفتار و زمان‌بندی دقیق صوتی...")
+        try:
+            import whisper_pipeline
+            ok = whisper_pipeline.run_pipeline(audio_path, sp, key)
+        except Exception as e:
+            print("whisper pipeline error:", e, flush=True)
+            ok = False
+
+    # 3. Last resort fallback to audio-only Gemini
     if not ok or not os.path.exists(sp):
-        send(chat, "⏳ استفاده از موتور پشتیبان Gemini...")
         try:
             uri, mime = gs.upload_file(audio_path, key)
             srt = gs.transcribe(uri, mime, key)
             if " --> " in srt:
-                open(sp, "w").write(clean_srt(srt))
+                open(sp, "w", encoding="utf-8").write(clean_srt(srt))
                 ok = True
         except Exception as e:
             send(chat, f"❌ خطا: {str(e)[:200]}")
