@@ -170,14 +170,14 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Professional compact subtitle sizing in libass/ffmpeg:
-    # Font size 9-11 is the true standard. Anything above 13 looks massive.
+    # Balanced font size: 9 for vertical (reels/shorts), 8.5 for horizontal
+    # Perfectly readable without being bulky or too small.
     if w < h:
-        fs = 10
-        margin_v = 14
+        fs = 9
+        margin_v = 16
     else:
-        fs = 8
-        margin_v = 10
+        fs = 8.5
+        margin_v = 12
     return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.0,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
@@ -451,7 +451,7 @@ def handle_auto(chat, url, tag, uid=None):
     if not key:
         edit(chat, mid, "❌ شما هنوز کلید اختصاصی Gemini خود را ثبت نکرده‌اید!\nبرای دریافت و ثبت کلید رایگان از دستور /setkey استفاده کنید.")
         return
-    style = f"FontName=Vazirmatn,FontSize=10,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.0,Shadow=0,MarginV=14,Alignment=2"
+    style = f"FontName=Vazirmatn,FontSize=9,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.0,Shadow=0,MarginV=16,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
