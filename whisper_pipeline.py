@@ -18,7 +18,7 @@ MODEL = "gemini-3.6-flash"
 def whisper_segments(path):
     from faster_whisper import WhisperModel
     m = WhisperModel("base", device="cpu", compute_type="int8", download_root="/tmp/models")
-    segs, _ = m.transcribe(path, language="tr", word_timestamps=True, vad_filter=True)
+    segs, _ = m.transcribe(path, language=None, word_timestamps=True, vad_filter=True)
     out = []
     for s in segs:
         if s.words:
@@ -37,10 +37,10 @@ def to_ts(sec):
 def translate(texts, key):
     lines = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(texts))
     prompt = (
-        "You are an expert Turkish to Persian film subtitle translator.\n"
-        "Translate each numbered Turkish line into natural, colloquial everyday Iranian Persian (فارسی روان، محاوره‌ای و امروزی).\n"
+        "You are an expert multilingual film subtitle translator into Persian.\n"
+        "Translate each numbered line (in ANY language) into natural, colloquial everyday Iranian Persian (فارسی روان، محاوره‌ای و امروزی).\n"
         "CRITICAL RULES:\n"
-        "1. NEVER translate proper nouns (names of people, places, brands). Transliterate them into Persian (e.g. 'Sarp' -> 'سارپ', NOT 'شیب').\n"
+        "1. NEVER translate proper nouns (names of people, places, brands). Transliterate them into Persian.\n"
         "2. Translate meaning and tone naturally, not word-for-word.\n"
         "3. Keep lines concise (max 38 chars). Use \\n if a line is long.\n"
         "4. Return ONLY numbered lines with the exact same numbers. No explanations.\n\n"
