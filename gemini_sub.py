@@ -12,6 +12,25 @@ def _cfg():
     except OSError:
         return {}
 
+def set_user_key(uid, key_str):
+    c = _cfg()
+    user_keys = c.get("user_gemini_keys", {})
+    key_str = key_str.strip()
+    user_keys[str(uid)] = key_str
+    c["user_gemini_keys"] = user_keys
+    json.dump(c, open(CFG, "w"))
+    return bool(key_str)
+
+def get_user_key(uid, is_admin=False):
+    c = _cfg()
+    user_keys = c.get("user_gemini_keys", {})
+    k = user_keys.get(str(uid), "").strip()
+    if k:
+        return k
+    if is_admin:
+        return get_key()
+    return ""
+
 def set_key(keys_str):
     c = _cfg()
     keys = [k.strip() for k in keys_str.replace(",", " ").split() if k.strip()]

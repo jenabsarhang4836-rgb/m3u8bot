@@ -209,10 +209,14 @@ def send_doc(chat, path, caption=""):
     except Exception as e:
         print("sendDoc fail:", e, flush=True)
 
-def do_transcribe(chat, audio_path, tag, burn_video=None):
-    key = gs.get_key()
+def do_transcribe(chat, audio_path, tag, burn_video=None, uid=None):
+    is_admin = str(uid) in ADMIN if uid else False
+    key = gs.get_user_key(uid, is_admin=is_admin) if uid else gs.get_key()
     if not key:
-        send(chat, "❌ کلید Gemini ست نیست. اول /setkey KEY رو بفرست.")
+        send(chat, "❌ شما هنوز کلید اختصاصی Gemini خود را ثبت نکرده‌اید!\n\nبرای استفاده، ابتدا با زدن دکمه زیر کلید رایگان خود را از گوگل دریافت کنید و سپس آن را بفرستید:", kb={"inline_keyboard": [
+            [{"text": "🌐 دریافت رایگان کلید Gemini", "url": "https://aistudio.google.com/app/apikey"}],
+            [{"text": "🔑 ثبت کلید", "callback_data": "h:setkey"}]
+        ]})
         return
     sp = f"{WORKDIR}/{tag}.srt"
     ok = False
@@ -410,7 +414,7 @@ def whisper_srt(chat, mid, audio, sp, label):
     rc = p.wait()
     return rc == 0 and os.path.exists(sp)
 
-def handle_auto(chat, url, tag):
+def handle_auto(chat, url, tag, uid=None):
     base = f"{WORKDIR}/auto{tag}"
     mp4 = base + ".mp4"
     mid = send(chat, "⏳ (۱/۴) دانلود...")
@@ -431,9 +435,10 @@ def handle_auto(chat, url, tag):
     if p.returncode != 0 or not os.path.exists(mp4):
         edit(chat, mid, "❌ دانلود نشد.")
         return
-    key = gs.get_key()
+    is_admin = str(uid) in ADMIN if uid else False
+    key = gs.get_user_key(uid, is_admin=is_admin) if uid else gs.get_key()
     if not key:
-        edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
+        edit(chat, mid, "❌ شما هنوز کلید اختصاصی Gemini خود را ثبت نکرده‌اید!\nبرای دریافت و ثبت کلید رایگان از دستور /setkey استفاده کنید.")
         return
     pv_res = get_video_res(pv)
     scale = gs.get_scale()
@@ -594,11 +599,8 @@ def main():
 
                 if data.startswith("h:"):
                     if data == "h:setkey":
-                        if cuid in ADMIN:
-                            PENDING_KEY.add(str(ch))
-                            edit(ch, mid, "🔑 کلید Gemini رو بفرست:")
-                        else:
-                            edit(ch, mid, "⛔️ این بخش فقط مخصوص ادمین ربات است.")
+                        PENDING_KEY.add(str(cuid))
+                        edit(ch, mid, "🔑 لطفاً کلید Gemini خود را بفرستید:\n(اگر کلید ندارید، می‌توانید از دکمه زیر به صورت رایگان از گوگل دریافت کنید)", kb={"inline_keyboard": [[{"text": "🌐 دریافت رایگان کلید Gemini", "url": "https://aistudio.google.com/app/apikey"}]]})
                     else:
                         edit(ch, mid, HELP.get(data[2:], HELP_MAIN))
                 continue
@@ -613,28 +615,32 @@ def main():
                 send(chat, "⛔️ برای استفاده از ربات، لطفاً ابتدا در کانال زیر عضو شوید و سپس روی «بررسی مجدد» بزنید:", kb=join_channel_kb())
                 continue
 
-            # Admin-only commands
-            if text.startswith("/setkey") or text == "/key" or text.startswith("/font"):
-                if uid not in ADMIN:
-                    send(chat, "⛔️ این دستور فقط برای ادمین ربات مجاز است.")
-                    continue
+            # Handle user setting their own Gemini API key
             if uid in PENDING_KEY and text and not text.startswith("/"):
-                gs.set_key(text)
+                gs.set_user_key(uid, text)
                 PENDING_KEY.discard(uid)
-                send(chat, "✅ کلید ذخیره شد.")
+                send(chat, "✅ کلید اختصاصی Gemini شما با موفقیت ذخیره شد!\nحالا می‌توانید هر ویدیویی بفرستید تا زیرنویس شود.")
                 continue
+
             if text.startswith("/setkey"):
                 parts = text.split(None, 1)
                 if len(parts) < 2:
-                    send(chat, "مثال: /setkey AIza...")
+                    send(chat, "برای ثبت کلید Gemini خود، دستور را به این شکل بفرستید:\n/setkey YOUR_KEY\n\nبرای دریافت کلید رایگان به سایت زیر بروید:\nhttps://aistudio.google.com/app/apikey")
                 else:
-                    gs.set_key(parts[1])
-                    send(chat, "✅ کلید Gemini ذخیره شد.")
+                    gs.set_user_key(uid, parts[1])
+                    send(chat, "✅ کلید اختصاصی Gemini شما با موفقیت ذخیره شد!\nحالا می‌توانید ویدیوهای خود را بفرستید.")
                 continue
+
             if text == "/key":
-                k = gs.get_key()
-                send(chat, "کلید Gemini: " + (k[:8] + "..." if k else "❌ ست نشده"))
+                k = gs.get_user_key(uid, is_admin=(uid in ADMIN))
+                send(chat, "وضعیت کلید Gemini شما: " + (f"فعال ({k[:6]}...{k[-4:]})" if k else "❌ ست نشده! از دستور /setkey استفاده کنید."))
                 continue
+
+            # Admin-only commands
+            if text.startswith("/font"):
+                if uid not in ADMIN:
+                    send(chat, "⛔️ این دستور فقط برای ادمین ربات مجاز است.")
+                    continue
             if text.startswith("/font"):
                 parts = text.split(None, 1)
                 try:
@@ -677,7 +683,7 @@ def main():
                     if r.returncode == 0 and os.path.exists(ap):
                         send_doc(chat, ap, "🎧 صدا")
                         do_transcribe(chat, ap, f"v{up['update_id']}",
-                                      burn_video=src)
+                                      burn_video=src, uid=uid)
                         try:
                             os.remove(ap)
                         except OSError:
@@ -699,14 +705,14 @@ def main():
                 ap = f"{WORKDIR}/a{up['update_id']}.bin"
                 send(chat, "⏳ گرفتمش...")
                 if download_tg_file(afid, ap):
-                    do_transcribe(chat, ap, f"s{up['update_id']}")
+                    do_transcribe(chat, ap, f"s{up['update_id']}", uid=uid)
                 else:
                     send(chat, "❌ دانلود نشد.")
                 continue
             elif "http" in text:
                 if text.startswith("sub:"):
                     url = text[4:].strip().split()[0]
-                    handle_auto(chat, url, f"a{up['update_id']}")
+                    handle_auto(chat, url, f"a{up['update_id']}", uid=uid)
                     continue
                 url = text.split()[0]
                 low = url.lower().split("?")[0]
@@ -715,7 +721,7 @@ def main():
                     send(chat, "⏳ دارم فایل صوتی رو می‌گیرم...")
                     r = subprocess.run(["curl", "-sL", "-m", "590", "-o", ap, url])
                     if r.returncode == 0 and os.path.exists(ap):
-                        do_transcribe(chat, ap, f"u{up['update_id']}")
+                        do_transcribe(chat, ap, f"u{up['update_id']}", uid=uid)
                     else:
                         send(chat, "❌ دانلود لینک نشد.")
                 else:
@@ -744,6 +750,6 @@ def main():
                         handle_yt(chat, url, f"job{up['update_id']}")
                     else:
                         u2 = text[4:].strip().split()[0] if text.startswith("sub:") else url
-                        handle_auto(chat, u2, f"a{up['update_id']}")
+                        handle_auto(chat, u2, f"a{up['update_id']}", uid=uid)
 
 main()
