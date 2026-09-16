@@ -32,6 +32,18 @@ def get_key():
     keys = get_keys()
     return keys[0] if keys else ""
 
+def get_scale():
+    c = _cfg()
+    try:
+        return float(c.get("sub_scale", 0.035))
+    except (ValueError, TypeError):
+        return 0.035
+
+def set_scale(val):
+    c = _cfg()
+    c["sub_scale"] = float(val)
+    json.dump(c, open(CFG, "w"))
+
 def _req(url, data=None, headers=None, timeout=120):
     req = urllib.request.Request(url, data=data, headers=headers or {})
     with urllib.request.urlopen(req, timeout=timeout) as r:

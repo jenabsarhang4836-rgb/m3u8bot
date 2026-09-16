@@ -152,11 +152,7 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Subtitle font scales with VIDEO HEIGHT (standard for subtitles, which
-    # occupy vertical space at the bottom). Tunable live via SUB_SCALE env
-    # (fraction of height). Default 3.5% — readable, not oversized.
-    scale = float(os.environ.get("SUB_SCALE", "0.035"))
-    short = min(w, h)
+    scale = gs.get_scale()
     fs = int(h * scale)
     fs = max(10, min(60, fs))
     margin_v = max(10, int(h * 0.02))
@@ -420,7 +416,7 @@ def handle_auto(chat, url, tag):
         edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
         return
     pv_res = get_video_res(pv)
-    scale = float(os.environ.get("SUB_SCALE", "0.035"))
+    scale = gs.get_scale()
     fs_pv = max(10, min(60, int(pv_res[1] * scale)))
     style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV=18,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
@@ -601,6 +597,18 @@ def main():
             if text == "/key":
                 k = gs.get_key()
                 send(chat, "کلید Gemini: " + (k[:8] + "..." if k else "❌ ست نشده"))
+                continue
+            if text.startswith("/font"):
+                parts = text.split(None, 1)
+                try:
+                    val = float(parts[1])
+                    if 0.01 <= val <= 0.10:
+                        gs.set_scale(val)
+                        send(chat, f"✅ اندازه فونت تنظیم شد: {val*100:.1f}٪ ارتفاع ویدیو (تغییر بلافاصله اعمال شد)")
+                    else:
+                        send(chat, "عدد باید بین ۰.۰۱ تا ۰.۱۰ باشه (مثلاً ۰.۰۳ یعنی ۳٪)")
+                except (IndexError, ValueError):
+                    send(chat, "مثال: /font 0.03")
                 continue
             if text == "/start":
                 send(chat, HELP_MAIN, main_kb())
