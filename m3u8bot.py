@@ -170,16 +170,17 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Distinct sizing:
-    # Vertical (reels/shorts): Large & punchy font (17) for mobile screens!
-    # Horizontal (landscape/YouTube): Compact font (9) so it doesn't block the scene.
+    # Mathematically calculated subtitle placement & sizing:
+    # 1. Vertical (reels/shorts): Bold & prominent font (24) filling width nicely,
+    #    elevated higher (MarginV=55) safely above the bottom watermark badge.
+    # 2. Horizontal (landscape): Classic movie subtitle size (14) with MarginV=30.
     if w < h:
-        fs = 17
-        margin_v = 24
+        fs = 24
+        margin_v = 55
     else:
-        fs = 9
-        margin_v = 12
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_v},Alignment=2"
+        fs = 14
+        margin_v = 30
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.4,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
@@ -454,9 +455,9 @@ def handle_auto(chat, url, tag, uid=None):
         edit(chat, mid, "❌ سرویس موقتاً با مشکل مواجه شده است.")
         return
     w_pv, h_pv = get_video_res(pv)
-    fs_pv = 17 if w_pv < h_pv else 9
-    margin_pv = 24 if w_pv < h_pv else 12
-    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_pv},Alignment=2"
+    fs_pv = 24 if w_pv < h_pv else 14
+    margin_pv = 55 if w_pv < h_pv else 30
+    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.4,Shadow=0,MarginV={margin_pv},Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
