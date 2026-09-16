@@ -687,24 +687,34 @@ def main():
                     continue
                 src = f"{WORKDIR}/in{up['update_id']}.mp4"
                 send(chat, "⏳ گرفتمش...")
-                if download_tg_file(fid, src):
-                    ap = f"{WORKDIR}/v{up['update_id']}.mp3"
-                    r = subprocess.run(["ffmpeg", "-y", "-v", "error",
-                                        "-threads", "2", "-i", src, "-vn",
-                                        "-c:a", "libmp3lame", "-b:a",
-                                        "128k", ap])
-                    if r.returncode == 0 and os.path.exists(ap):
-                        send_doc(chat, ap, "🎧 صدا")
-                        do_transcribe(chat, ap, f"v{up['update_id']}",
-                                      burn_video=src, uid=uid)
-                        try:
-                            os.remove(ap)
-                        except OSError:
-                            pass
+                try:
+                    if download_tg_file(fid, src):
+                        ap = f"{WORKDIR}/v{up['update_id']}.mp3"
+                        r = subprocess.run(["ffmpeg", "-y", "-v", "error",
+                                            "-threads", "2", "-i", src, "-vn",
+                                            "-c:a", "libmp3lame", "-b:a",
+                                            "128k", ap])
+                        if r.returncode == 0 and os.path.exists(ap):
+                            send_doc(chat, ap, "🎧 صدا")
+                            do_transcribe(chat, ap, f"v{up['update_id']}",
+                                          burn_video=src, uid=uid)
+                            try:
+                                os.remove(ap)
+                            except OSError:
+                                pass
+                        else:
+                            send(chat, "❌ استخراج صدا نشد.")
                     else:
-                        send(chat, "❌ استخراج صدا نشد.")
-                else:
-                    send(chat, "❌ دانلود فایل از تلگرام نشد.")
+                        send(chat, "❌ دانلود فایل از تلگرام نشد.")
+                except Exception as e:
+                    print(f"Error processing video {up['update_id']}: {e}", flush=True)
+                    send(chat, f"❌ خطا در پردازش: {str(e)[:150]}")
+                finally:
+                    try:
+                        if os.path.exists(src):
+                            os.remove(src)
+                    except OSError:
+                        pass
                 continue
             aud = m.get("audio") or m.get("voice") or {}
             adoc = m.get("document") or {}

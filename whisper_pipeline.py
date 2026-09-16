@@ -65,11 +65,12 @@ def translate(texts, key):
         except urllib.request.HTTPError as e:
             if e.code in (429, 503):
                 print(f"Gemini {e.code} with key ending in ...{current_key[-4:]}, trying next/waiting...", flush=True)
-                time.sleep(2)
+                time.sleep(3)
                 continue
             raise
     else:
-        raise Exception("Gemini API quota exceeded or overloaded on all keys.")
+        print("Gemini API quota exceeded on all keys.", flush=True)
+        return texts  # Return original transcript without crashing if quota exhausted!
     txt = ""
     for c in resp.get("candidates", []):
         for p in (c.get("content") or {}).get("parts", []):
