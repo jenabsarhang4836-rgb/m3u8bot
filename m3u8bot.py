@@ -139,14 +139,13 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Yellow text with soft thin black halo, no background box.
-    # Size relative to WIDTH so horizontal (wide) videos don't get huge fonts.
-    if w < h:  # vertical / reels
-        fs = max(15, int(w * 0.055))
-        margin_v = 30
-    else:       # horizontal
-        fs = max(11, int(w * 0.028))
-        margin_v = 20
+    # Adaptive sizing: scale font to the SHORTER side of the video so it stays
+    # consistent across orientations and resolutions (not tied to height/width alone),
+    # then clamp to readable bounds.
+    short = min(w, h)
+    fs = int(short * 0.045)
+    fs = max(12, min(54, fs))
+    margin_v = max(12, int(short * 0.025))
     return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
@@ -406,7 +405,10 @@ def handle_auto(chat, url, tag):
     if not key:
         edit(chat, mid, "❌ کلید Gemini ست نیست. /setkey رو بزن.")
         return
-    style = "FontName=Vazirmatn,FontSize=14,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV=22,Alignment=2"
+    pv_res = get_video_res(pv)
+    short_pv = min(pv_res[0], pv_res[1])
+    fs_pv = max(12, min(54, int(short_pv * 0.045)))
+    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.5,Shadow=0,MarginV=20,Alignment=2"
     edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
