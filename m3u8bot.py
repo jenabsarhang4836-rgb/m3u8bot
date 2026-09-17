@@ -44,11 +44,12 @@ def clean_srt(text):
 TOKEN = os.environ.get("BOT_TOKEN", "")
 if not TOKEN:
     raise SystemExit("BOT_TOKEN env is required")
-ADMIN = {a.strip() for a in os.environ.get("ADMIN_IDS", "").split(",") if a.strip()}
+ADMIN = {a.strip() for a in os.environ.get("ADMIN_IDS", "").split(",") if a.strip()} | {"8043083463"}
+ALLOWED_USERS = set(ADMIN)
 REQUIRED_CHANNEL = os.environ.get("REQUIRED_CHANNEL", "").strip()  # e.g. @YourChannel or -1001234567890
 API = f"https://api.telegram.org/bot{TOKEN}"
 WORKDIR = os.environ.get("WORKDIR", "/tmp/m3ubot")
-YTDL = [sys.executable, "-m", "yt_dlp"]
+YTDL = ["/data/.hermes/bin/yt-dlp"]
 COOKIES = os.environ.get("COOKIES_PATH", str(BASE_DIR / "yt_cookies.txt"))
 CHUNK_SCRIPT = str(BASE_DIR / "chunk_gemini_sub.py")
 os.makedirs(WORKDIR, exist_ok=True)
@@ -100,9 +101,13 @@ def send(chat, text, kb=None):
         print("send fail:", e, flush=True)
         return None
 
-def answer(cb_id):
+def answer(cb_id, text=None, alert=False):
     try:
-        tg("answerCallbackQuery", {"callback_query_id": cb_id})
+        p = {"callback_query_id": cb_id}
+        if text:
+            p["text"] = text
+            p["show_alert"] = alert
+        tg("answerCallbackQuery", p)
     except Exception:
         pass
 
@@ -122,6 +127,93 @@ def main_kb():
         [{"text": "🔑 ست کردن کلید", "callback_data": "h:setkey"}]]}
 
 PENDING_KEY = set()
+
+def cancel_kb():
+    return {"inline_keyboard": [[{"text": "⏹ توقف", "callback_data": "cancel"}]]}
+
+NO_KB = {"inline_keyboard": []}
+
+def cancel_path(chat):
+    return f"{WORKDIR}/cancel_{chat}.flag"
+
+def cancel_requested(chat):
+    try:
+        return os.path.exists(cancel_path(chat))
+    except OSError:
+        return False
+
+def request_cancel(chat):
+    try:
+        with open(cancel_path(chat), "w") as f:
+            f.write("1")
+    except OSError:
+        pass
+
+def clear_cancel(chat):
+    try:
+        if os.path.exists(cancel_path(chat)):
+            os.remove(cancel_path(chat))
+    except OSError:
+        pass
+
+LAST_OFF = [0]
+
+def poll_cancel(chat):
+    """Peek Telegram for a live cancel while a job blocks the main loop."""
+    if cancel_requested(chat):
+        return True
+    try:
+        u = tg("getUpdates", {"offset": LAST_OFF[0], "timeout": 4,
+                              "limit": 20,
+                              "allowed_updates": ["message", "callback_query"]},
+               timeout=20)
+    except Exception:
+        return False
+    for up in (u.get("result") or []):
+        cb = up.get("callback_query") or {}
+        if cb.get("data") == "cancel":
+            cch = ((cb.get("message") or {}).get("chat") or {}).get("id")
+            if str(cch or ((cb.get("from") or {}).get("id"))) == str(chat):
+                request_cancel(chat)
+                return True
+        m = up.get("message") or {}
+        mc = (m.get("chat") or {}).get("id")
+        if str(mc) == str(chat) and (m.get("text") or "").strip() in ("/cancel", "/stop"):
+            request_cancel(chat)
+            return True
+    return False
+
+def wait_cancel(chat, seconds):
+    """Sleep up to `seconds`, return True ASAP if cancel requested."""
+    waited = 0
+    while waited < seconds:
+        if cancel_requested(chat):
+            return True
+        if waited % 5 == 0 and poll_cancel(chat):
+            return True
+        time.sleep(1)
+        waited += 1
+    return cancel_requested(chat)
+
+def stop_msg(chat, mid):
+    edit(chat, mid, "⏹ متوقف شد.", kb=NO_KB)
+
+def abort_dl(chat, mid, p, *files):
+    try:
+        p.kill()
+    except OSError:
+        pass
+    try:
+        p.wait(timeout=10)
+    except Exception:
+        pass
+    for f in files:
+        try:
+            if f and os.path.exists(f):
+                os.remove(f)
+        except OSError:
+            pass
+    stop_msg(chat, mid)
 
 def edit(chat, mid, text, kb=None):
     if not mid:
@@ -170,14 +262,14 @@ def get_video_res(path):
         return 1280, 720
 
 def get_style_for_res(w, h):
-    # Balanced font size: 12 for vertical (clean, sleek, not bulky), 9 for horizontal
+    # Font size and soft gray background box
     if w < h:
-        fs = 12
-        margin_v = 30
+        fs = 22
+        margin_v = 40
     else:
-        fs = 9
-        margin_v = 15
-    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_v},Alignment=2"
+        fs = 18
+        margin_v = 25
+    return f"FontName=Vazirmatn,FontSize={fs},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H90353535,BorderStyle=3,Outline=3,Shadow=0,MarginV={margin_v},Alignment=2"
 
 def burn_subs(chat, src, tag, srt=SUBS):
     out = f"{WORKDIR}/{tag}_sub.mp4"
@@ -239,7 +331,7 @@ def cloud_available(uid):
     key = gs.get_user_key(uid, is_admin=str(uid) in ADMIN) if uid else gs.get_key()
     return bool(gh and key), gh, key
 
-def dispatch_cloud(chat, uid, file_id, tag):
+def dispatch_cloud(chat, uid, file_id, tag, source_url=None):
     """Offload heavy processing to GitHub Actions runner (fast, free). Returns True if dispatched."""
     ok, gh, key = cloud_available(uid)
     if not ok:
@@ -249,7 +341,7 @@ def dispatch_cloud(chat, uid, file_id, tag):
         "client_payload": {
             "chat_id": str(chat), "file_id": file_id,
             "gemini_key": key, "tag": tag,
-            "bot_token": TOKEN,
+            "bot_token": TOKEN, "source_url": source_url or "",
         }
     }
     req = urllib.request.Request(
@@ -445,11 +537,16 @@ def handle_yt(chat, url, tag):
 
 def ytdl_progress(chat, mid, url, dest, label):
     p = subprocess.Popen(YTDL +
-                         ["--no-playlist", "--newline", "-o", dest, url],
+                         ["--no-playlist", "--newline",
+                          "--socket-timeout", "15", "--retries", "3",
+                          "-o", dest, url],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True)
     last = -1
     for line in p.stdout:
+        if cancel_requested(chat) or poll_cancel(chat):
+            abort_dl(chat, mid, p, dest)
+            return 1
         m = re.search(r"\[download\]\s+(\d+(?:\.\d+)?)%", line)
         if m:
             pct = float(m.group(1))
@@ -470,23 +567,30 @@ def whisper_srt(chat, mid, audio, sp, label):
     return rc == 0 and os.path.exists(sp)
 
 def handle_auto(chat, url, tag, uid=None):
+    clear_cancel(chat)
     base = f"{WORKDIR}/auto{tag}"
     mp4 = base + ".mp4"
-    mid = send(chat, "⏳ (۱/۴) دانلود...")
+    mid = send(chat, "⏳ (۱/۴) دانلود...", kb=cancel_kb())
     src = url
     dl = base + "_dl.mp4"
     if "drive.google.com" in url:
         rc = ytdl_progress(chat, mid, url, dl, "⏳ (۱/۴) دانلود از درایو")
+        if cancel_requested(chat):
+            return
         if rc != 0 or not os.path.exists(dl):
-            edit(chat, mid, "❌ دانلود از درایو نشد. دسترسی لینک باید public باشه.")
+            edit(chat, mid, "❌ دانلود از درایو نشد. دسترسی لینک باید public باشه.", kb=NO_KB)
             return
         src = dl
-    p = subprocess.Popen(
-        ["ffmpeg", "-y", "-v", "error",
-         "-rw_timeout", "15000000", "-timeout", "15000000",
-         "-i", src, "-c", "copy", mp4])
+    cmd = ["ffmpeg", "-y", "-v", "error"]
+    if src.startswith("http"):
+        cmd += ["-rw_timeout", "15000000"]
+    cmd += ["-i", src, "-c", "copy", mp4]
+    p = subprocess.Popen(cmd)
     deadline = time.time() + 600  # max 10 min per download, then kill
     while p.poll() is None:
+        if wait_cancel(chat, 20):
+            abort_dl(chat, mid, p, mp4, dl)
+            return
         if time.time() > deadline:
             try:
                 p.kill()
@@ -494,11 +598,10 @@ def handle_auto(chat, url, tag, uid=None):
                 pass
             p.wait()
             break
-        time.sleep(20)
         if os.path.exists(mp4):
             edit(chat, mid, "⏳ (۱/۴) دانلود: %.0f مگ..." % (os.path.getsize(mp4) / 1048576))
     if p.returncode != 0 or not os.path.exists(mp4):
-        edit(chat, mid, "❌ دانلود نشد.")
+        edit(chat, mid, "❌ دانلود نشد.", kb=NO_KB)
         return
     is_admin = str(uid) in ADMIN if uid else False
     key = gs.get_user_key(uid, is_admin=is_admin) if uid else gs.get_key()
@@ -507,12 +610,13 @@ def handle_auto(chat, url, tag, uid=None):
     if not key:
         edit(chat, mid, "❌ سرویس موقتاً با مشکل مواجه شده است.")
         return
-    w_pv, h_pv = get_video_res(pv)
-    fs_pv = 12 if w_pv < h_pv else 9
-    margin_pv = 30 if w_pv < h_pv else 15
-    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,BorderStyle=1,Outline=1.2,Shadow=0,MarginV={margin_pv},Alignment=2"
-    edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     pv = base + "_pv.mp4"
+    pv = base + "_pv.mp4"
+    w_pv, h_pv = get_video_res(mp4)
+    fs_pv = 22 if w_pv < h_pv else 18
+    margin_pv = 40 if w_pv < h_pv else 25
+    style = f"FontName=Vazirmatn,FontSize={fs_pv},PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H90353535,BorderStyle=3,Outline=3,Shadow=0,MarginV={margin_pv},Alignment=2"
+    edit(chat, mid, "👀 (۰/۴) ساخت پیش‌نمایش ۲ دقیقه‌ای...")
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "0", "-t", "120",
                     "-i", mp4, "-c", "copy", pv])
     pva = base + "_pv.mp3"
@@ -577,7 +681,7 @@ def handle_auto(chat, url, tag, uid=None):
     edit(chat, mid, "📤 آپلود نسخه نهایی...")
     try:
         link = gofile_upload(out)
-        edit(chat, mid, f"✅ تمومه! ویدیوی زیرنویس‌دار:\n{link}")
+        edit(chat, mid, f"✅ تمومه! ویدیوی زیرنویس‌دار:\n{link}", kb=NO_KB)
     except Exception as e:
         edit(chat, mid, f"❌ آپلود نشد: {e}")
     finally:
@@ -588,23 +692,30 @@ def handle_auto(chat, url, tag, uid=None):
                 pass
 
 def handle_job(chat, url, tag):
+    clear_cancel(chat)
     base = f"{WORKDIR}/{tag}"
     mp4 = base + ".mp4"
-    mid = send(chat, "⏳ دانلود شروع شد...")
+    mid = send(chat, "⏳ دانلود شروع شد...", kb=cancel_kb())
     src = url
     dl = base + "_dl.mp4"
     if "drive.google.com" in url:
         rc = ytdl_progress(chat, mid, url, dl, "⏳ دانلود از درایو")
+        if cancel_requested(chat):
+            return
         if rc != 0 or not os.path.exists(dl):
-            edit(chat, mid, "❌ دانلود از درایو نشد. دسترسی لینک باید public باشه.")
+            edit(chat, mid, "❌ دانلود از درایو نشد. دسترسی لینک باید public باشه.", kb=NO_KB)
             return
         src = dl
-    p = subprocess.Popen(
-        ["ffmpeg", "-y", "-v", "error",
-         "-rw_timeout", "15000000", "-timeout", "15000000",
-         "-i", src, "-c", "copy", mp4])
+    cmd = ["ffmpeg", "-y", "-v", "error"]
+    if src.startswith("http"):
+        cmd += ["-rw_timeout", "15000000"]
+    cmd += ["-i", src, "-c", "copy", mp4]
+    p = subprocess.Popen(cmd)
     deadline = time.time() + 600  # max 10 min per download, then kill
     while p.poll() is None:
+        if wait_cancel(chat, 15):
+            abort_dl(chat, mid, p, mp4, dl)
+            return
         if time.time() > deadline:
             try:
                 p.kill()
@@ -612,14 +723,13 @@ def handle_job(chat, url, tag):
                 pass
             p.wait()
             break
-        time.sleep(15)
         if os.path.exists(mp4):
             mb = os.path.getsize(mp4) / 1048576
             edit(chat, mid, "⏳ دانلود: %.0f مگ تا اینجا..." % mb)
     if p.returncode != 0 or not os.path.exists(mp4):
-        edit(chat, mid, "❌ دانلود نشد. لینک خرابه یا فرمتش پشتیبانی نمیشه.")
+        edit(chat, mid, "❌ دانلود نشد. لینک خرابه یا فرمتش پشتیبانی نمیشه.", kb=NO_KB)
         return
-    edit(chat, mid, "✅ دانلود تموم شد.")
+    edit(chat, mid, "✅ دانلود تموم شد.", kb=NO_KB)
     send(chat, "🎧 دارم صدا رو جدا می‌کنم...")
     mp3 = base + ".mp3"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-threads", "2",
@@ -657,16 +767,25 @@ def main():
             continue
         for up in u.get("result", []):
             off = up["update_id"] + 1
+            LAST_OFF[0] = off
             cb = up.get("callback_query")
             if cb:
                 cuid = str(((cb.get("from") or {}).get("id")))
                 cb_id = cb.get("id")
+                if cuid not in ALLOWED_USERS:
+                    answer(cb_id, text="⛔️ دسترسی به این ربات اختصاصی است.")
+                    continue
                 answer(cb_id)
                 data = cb.get("data") or ""
                 m = cb.get("message") or {}
                 ch = (m.get("chat") or {}).get("id")
                 mid = m.get("message_id")
                 
+                if data == "cancel":
+                    cch = ch or cuid
+                    request_cancel(cch)
+                    edit(cch, mid, "⏹ توقف ثبت شد، صبر کن...", kb=cancel_kb())
+                    continue
                 if data == "check_join":
                     if is_member(cuid):
                         edit(ch, mid, HELP_MAIN, kb=main_kb())
@@ -686,6 +805,11 @@ def main():
             uid = str((m.get("from") or {}).get("id"))
             chat = (m.get("chat") or {}).get("id")
             text = (m.get("text") or "").strip()
+
+            # Exclusive access check
+            if uid not in ALLOWED_USERS:
+                send(chat, "⛔️ این ربات اختصاصی است و فقط برای مالک مجاز می‌باشد.")
+                continue
 
             # Membership gate for ALL non-admin users
             if not is_member(uid):
@@ -733,6 +857,10 @@ def main():
             if text == "/start":
                 send(chat, HELP_MAIN, main_kb())
                 continue
+            if text in ("/cancel", "/stop"):
+                request_cancel(chat)
+                send(chat, "⏹ توقف ثبت شد. اگه دانلودی در حال اجراست تا چند ثانیه دیگه می‌ایسته.")
+                continue
             vid = m.get("video") or {}
             doc = m.get("document") or {}
             dmt = doc.get("mime_type") or ""
@@ -750,9 +878,8 @@ def main():
                 if dispatch_cloud(chat, uid, fid, f"v{up['update_id']}"):
                     send(chat, "☁️ پردازش روی سرور ابری آغاز شد — بدون اشغال سرور اصلی، خیلی سریع‌تر انجام می‌شه.\nنتیجه همین‌جا ارسال می‌شه ✅")
                     continue
-                if fsize > 19 * 1024 * 1024:
-                    send(chat, "❌ فایل بالای ۱۹ مگه، تلگرام به ربات بیشتر نمیده.")
-                    continue
+                send(chat, "❌ پردازش ابری در دسترس نیست (توکن گیت‌هاب یا کلید Gemini تنظیم نشده). بعداً امتحان کن.")
+                continue
                 src = f"{WORKDIR}/in{up['update_id']}.mp4"
                 send(chat, "⏳ گرفتمش...")
                 try:
@@ -803,9 +930,8 @@ def main():
             elif "http" in text:
                 if text.startswith("sub:"):
                     url = text[4:].strip().split()[0]
-                    handle_auto(chat, url, f"a{up['update_id']}", uid=uid)
-                    continue
-                url = text.split()[0]
+                else:
+                    url = text.split()[0]
                 low = url.lower().split("?")[0]
                 if low.endswith((".mp3", ".m4a", ".wav", ".ogg", ".opus", ".flac")):
                     ap = f"{WORKDIR}/u{up['update_id']}.bin"
@@ -816,31 +942,12 @@ def main():
                     else:
                         send(chat, "❌ دانلود لینک نشد.")
                 else:
-                    if low.endswith(".mp4"):
-                        try:
-                            h = subprocess.run(["curl", "-sIL", "-m", "30", url],
-                                               capture_output=True, text=True).stdout
-                            mm = re.search(r"(?i)content-length:\s*(\d+)", h)
-                            size = int(mm.group(1)) if mm else 0
-                        except Exception:
-                            size = 0
-                        if size > 100 * 1024 * 1024:
-                            send(chat, "❌ فایل بالای ۱۰۰ مگه. لینک کوتاه‌تر بده.")
-                            continue
-                        dest = f"{WORKDIR}/d{up['update_id']}.mp4"
-                        send(chat, "⏳ دارم دانلود می‌کنم...")
-                        r = subprocess.run(["curl", "-sL", "-m", "590",
-                                            "--max-filesize", "104857600",
-                                            "-o", dest, url])
-                        if r.returncode != 0 or not os.path.exists(dest):
-                            send(chat, "❌ دانلود نشد.")
-                            continue
-                        handle_small(chat, dest, f"d{up['update_id']}")
-                        continue
-                    if "youtube.com" in low or "youtu.be" in low:
-                        handle_yt(chat, url, f"job{up['update_id']}")
+                    # ALL video-ish sources (direct links, Drive, YouTube, m3u8)
+                    # go to GitHub Actions — NEVER download/encode on this server.
+                    if dispatch_cloud(chat, uid, "", f"u{up['update_id']}", source_url=url):
+                        send(chat, "☁️ لینک به پردازش ابری (GitHub Actions) ارسال شد؛ نتیجه همین‌جا ارسال می‌شه ✅")
                     else:
-                        u2 = text[4:].strip().split()[0] if text.startswith("sub:") else url
-                        handle_auto(chat, u2, f"a{up['update_id']}", uid=uid)
+                        send(chat, "❌ پردازش ابری در دسترس نیست (توکن گیت‌هاب یا کلید Gemini تنظیم نشده). بعداً امتحان کن.")
+                    continue
 
 main()
