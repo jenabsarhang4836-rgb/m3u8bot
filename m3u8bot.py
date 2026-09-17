@@ -871,6 +871,36 @@ def main():
                 else:
                     send(chat, "❌ دانلود کوکی نشد.")
                 continue
+
+            # APK handling: dispatch directly to cloud runner
+            if dname.lower().endswith(".apk") and doc.get("file_id"):
+                afid = doc.get("file_id")
+                tag = f"apk_{up['update_id']}"
+                ok, gh, key = cloud_available(uid)
+                if ok:
+                    payload = {
+                        "event_type": "process_apk",
+                        "client_payload": {
+                            "chat_id": str(chat), "file_id": afid,
+                            "gemini_key": key or "", "tag": tag,
+                            "bot_token": TOKEN, "file_name": dname
+                        }
+                    }
+                    req = urllib.request.Request(
+                        f"https://api.github.com/repos/{GH_REPO}/dispatches",
+                        data=json.dumps(payload).encode(),
+                        headers={"Authorization": f"token {gh}",
+                                 "Accept": "application/vnd.github+json",
+                                 "User-Agent": "aisubfa-bot"})
+                    try:
+                        with urllib.request.urlopen(req, timeout=30) as r:
+                            if r.status in (200, 204):
+                                send(chat, f"☁️ فایل {dname} تحویل رانر ابری شد — پچ، بازسازی و امضای APK در حال انجام است...")
+                                continue
+                    except Exception as e:
+                        print("apk dispatch error:", e, flush=True)
+                send(chat, "❌ اعزام تسک APK به رانر ابری ناموفق بود.")
+                continue
             fid = vid.get("file_id") or (doc.get("file_id") if dmt.startswith("video") else None)
             if fid:
                 fsize = vid.get("file_size") or doc.get("file_size") or 0
